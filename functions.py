@@ -20,7 +20,6 @@ def process_batch(args):
     output_offset_in_seconds = args.offset
     output_resize = args.resize
     output_limit = args.limit
-    verbose_mode = args.verbose
 
     if output_rows <= 0 or output_columns <= 0 or output_delay_in_seconds < 0 or output_offset_in_seconds < 0\
             or output_resize <= 0:
@@ -78,7 +77,7 @@ def process_single(args):
     input_file_extension = os.path.splitext(input_file)[1]
 
     output_file_extension = ".jpg"
-    output_file_name_extras = f"{output_rows}x{output_columns}-{decimal.Decimal(output_resize / 100).normalize()}x"
+    output_file_name_extras = f"{output_rows}x{output_columns}-{decimal.Decimal(output_resize).normalize()}x"
     output_file_name = f"{input_file_name}-{output_file_name_extras}"
     output_file = f"{output_file_name}{output_file_extension}"
     output_path = f"{output_path}/{output_file}"
@@ -103,7 +102,8 @@ def process_single(args):
     cap_max_tolerance = 0.05
     cap_max_offset_in_frames = int((cap_step_frame - (cap_step_frame % cap_fps)) * (1 - cap_max_tolerance))
     cap_max_offset_in_seconds = int(cap_max_offset_in_frames // cap_fps)
-    cap_max_delay_in_frames = int(((cap_frame_count - (cap_frame_count % cap_fps)) - cap_max_offset_in_frames) * (1 - cap_max_tolerance))
+    cap_max_delay_in_frames = int(((cap_frame_count - (cap_frame_count % cap_fps)) - cap_max_offset_in_frames)
+                                  * (1 - cap_max_tolerance))
     cap_max_delay_in_seconds = int(cap_max_delay_in_frames // cap_fps)
 
     frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -131,7 +131,7 @@ max_delay_tolerance: {int(cap_max_tolerance * 100)}%
 offset: {output_offset_in_seconds} seconds, {cap_offset_in_frames} frames
 max_offset: {cap_max_offset_in_seconds} seconds, {cap_max_offset_in_frames} frames
 max_offset_tolerance: {int(cap_max_tolerance * 100)}%
-resize: {output_resize}%""")
+resize: {int(output_resize * 100)}%""")
 
     if output_delay_in_seconds > cap_max_delay_in_seconds:
         print(f"Delay exceeded file limit. Automatically set from {output_delay_in_seconds} to "
@@ -168,18 +168,17 @@ resize: {output_resize}%""")
               file=sys.stderr)
         output_error_count += 1
 
-    if output_resize != 100:
+    if output_resize <= 1:
         try:
-            output_resized_interpolation = cv2.INTER_AREA
-            output_resized_height = int(output_height * (output_resize / 100))
-            output_resized_width = int(output_width * (output_resize / 100))
-            if output_resize > 100:
-                output_resized_interpolation = cv2.INTER_CUBIC
+            output_resized_height = int(output_height * output_resize)
+            output_resized_width = int(output_width * output_resize)
             output_generated_file = cv2.resize(output_generated_file, (output_resized_width, output_resized_height),
-                                               interpolation=output_resized_interpolation)
+                                               interpolation=cv2.INTER_AREA)
         except AttributeError:
             print(f"An issue occurred while resizing.", file=sys.stderr)
             output_error_count += 1
+    else:
+        print("Resize values have to be less than 100%! Skipping resizing...", file=sys.stderr)
 
     try:
         cv2.imwrite(output_path, output_generated_file)
